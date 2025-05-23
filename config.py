@@ -1,18 +1,9 @@
-TELEGRAM_TOKEN = "8103030808:AAHSXYKjylf1RVLGEtZsMeDmx4E5ZNUTe38"
-ADMIN_ID = 648261997  # آیدی عددی شما
+import os
 
-PRICING = {
-    "monthly": {"amount": 50, "days": 30},
-    "6months": {"amount": 200, "days": 180},
-    "yearly": {"amount": 300, "days": 365}
-}
-
-WELCOME_MESSAGE = """
-به ربات *رادار نهنگ‌ها* خوش آمدید!
-
-با استفاده از این ربات می‌توانید سیگنال‌های دقیق بازار رمزارز را دریافت کنید.
-
-از منوی ربات یکی از گزینه‌ها را انتخاب کنید.
-"""
-
-COINMARKETCAP_API_KEY = "کلید API مربوط به CoinMarketCap"
+CMC_API_KEY = os.getenv("CMC_API_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+USDT_WALLET = os.getenv("USDT_WALLET")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+PORT = int(os.getenv("PORT", 5000))
