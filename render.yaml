@@ -4,11 +4,19 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python whale_bot_ai.py"
+    startCommand: "python main.py"
     envVars:
+      - key: CMC_API_KEY
+        value: your_coinmarketcap_api_key
       - key: TELEGRAM_TOKEN
-        value: توکن_ربات_تلگرام
+        value: your_telegram_bot_token
       - key: ADMIN_ID
-        value: عدد_آی‌دی_شما
-      - key: COINMARKETCAP_API_KEY
-        value: کلید_API_CMC
+        value: "123456789"
+      - key: ADMIN_USERNAME
+        value: your_admin_username
+      - key: USDT_WALLET
+        value: your_usdt_wallet_address
+      - key: WEBHOOK_URL
+        value: https://your-app-name.onrender.com
+      - key: PORT
+        value: "5000"
