@@ -1,97 +1,68 @@
+from config import CMC_API_KEY, TELEGRAM_TOKEN, ADMIN_ID, ADMIN_USERNAME, USDT_WALLET, WEBHOOK_URL, PORT
 import telebot
 from telebot import types
-from datetime import datetime, timedelta
 import requests
-from config import TELEGRAM_TOKEN, ADMIN_ID, PRICING, WELCOME_MESSAGE, COINMARKETCAP_API_KEY
+from signal_generator import generate_signal
+import flask
+from flask import request
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-user_subscriptions = {}
-
-def is_subscribed(user_id):
-    if user_id == ADMIN_ID:
-        return True
-    expiry = user_subscriptions.get(user_id)
-    return expiry and datetime.now() < expiry
-
-def get_signal(symbol):
-    url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
-    headers = {'X-CMC_PRO_API_KEY': COINMARKETCAP_API_KEY}
-    params = {'symbol': symbol.upper(), 'convert': 'USDT'}
-
-    try:
-        response = requests.get(url, headers=headers, params=params)
-        data = response.json()
-        price = data["data"][symbol.upper()]["quote"]["USDT"]["price"]
-        return {
-            "entry": round(price, 2),
-            "sl": round(price * 0.985, 2),
-            "tp1": round(price * 1.01, 2),
-            "tp2": round(price * 1.015, 2),
-            "tp3": round(price * 1.02, 2),
-            "leverage": "5x"
-        }
-    except Exception as e:
-        return None
+app = flask.Flask(__name__)
+subscriptions = {}
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, WELCOME_MESSAGE, parse_mode='Markdown')
-
-@bot.message_handler(commands=['menu'])
-def menu(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("دریافت سیگنال", "خرید اشتراک", "ارتباط با ادمین")
-    bot.send_message(message.chat.id, "یکی از گزینه‌ها را انتخاب کنید:", reply_markup=markup)
+    markup.row("دریافت سیگنال", "خرید اشتراک")
+    markup.row("تماس با ادمین")
+    bot.send_message(message.chat.id, "به ربات رادار نهنگ‌ها خوش آمدید!", reply_markup=markup)
 
-@bot.message_handler(func=lambda msg: msg.text == "خرید اشتراک")
-def show_subscriptions(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("ماهانه", "شش ماهه", "سالانه")
-    bot.send_message(message.chat.id, "نوع اشتراک را انتخاب کنید:", reply_markup=markup)
+@bot.message_handler(func=lambda m: m.text == "تماس با ادمین")
+def contact_admin(message):
+    bot.send_message(message.chat.id, f"آیدی ادمین: @{ADMIN_USERNAME}")
 
-@bot.message_handler(func=lambda msg: msg.text in ['ماهانه', 'شش ماهه', 'سالانه'])
-def buy_subscription(message):
-    duration_map = {
-        'ماهانه': ('monthly', 30),
-        'شش ماهه': ('6months', 180),
-        'سالانه': ('yearly', 365)
-    }
-    key, days = duration_map[message.text]
-    amount = PRICING[key]['amount']
-    expiry = datetime.now() + timedelta(days=days)
-    user_subscriptions[message.from_user.id] = expiry
-    bot.send_message(message.chat.id, f"✅ اشتراک شما برای {days} روز فعال شد.")
+@bot.message_handler(func=lambda m: m.text == "خرید اشتراک")
+def subscription_options(message):
+    bot.send_message(message.chat.id,
+    "پلن اشتراک را انتخاب کنید:\n1. ماهانه: ۵۰ تتر\n2. شش ماهه: ۲۰۰ تتر\n3. سالانه: ۳۰۰ تتر\n\nآدرس تتر (TRC20):\n" + USDT_WALLET)
 
-@bot.message_handler(func=lambda msg: msg.text == "دریافت سیگنال")
-def signal_menu(message):
-    if not is_subscribed(message.from_user.id):
-        bot.send_message(message.chat.id, "اشتراک ندارید. لطفاً از منو، اشتراک تهیه کنید.")
-        return
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("هوشمند", "دستی")
-    bot.send_message(message.chat.id, "نوع سیگنال را انتخاب کنید:", reply_markup=markup)
-
-@bot.message_handler(func=lambda msg: msg.text == "هوشمند")
-def smart_signal(message):
-    signal = get_signal("BTC")
-    if signal:
-        msg = f"BTC BUY\nENTRY: {signal['entry']}\nSL: {signal['sl']}\nTP1: {signal['tp1']}\nTP2: {signal['tp2']}\nTP3: {signal['tp3']}\nLeverage: {signal['leverage']}"
-        bot.send_message(message.chat.id, msg)
+@bot.message_handler(func=lambda m: m.text == "دریافت سیگنال")
+def get_signal(message):
+    user_id = message.chat.id
+    if user_id == ADMIN_ID or subscriptions.get(user_id, False):
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("ارسال سیگنال دستی", "سیگنال هوشمند")
+        bot.send_message(user_id, "نوع سیگنال را انتخاب کنید:", reply_markup=markup)
     else:
-        bot.send_message(message.chat.id, "دریافت سیگنال ممکن نیست.")
+        bot.send_message(user_id, "شما اشتراک فعال ندارید. ابتدا اشتراک تهیه کنید.")
 
-@bot.message_handler(func=lambda msg: msg.text == "دستی")
-def ask_symbol(message):
-    msg = bot.send_message(message.chat.id, "نماد ارز را وارد کنید (مثلاً ETH):")
-    bot.register_next_step_handler(msg, send_custom_signal)
+@bot.message_handler(func=lambda m: m.text == "سیگنال هوشمند")
+def send_smart_signal(message):
+    symbol = "BTC"
+    signal = generate_signal(symbol, CMC_API_KEY)
+    bot.send_message(message.chat.id, signal)
 
-def send_custom_signal(message):
+@bot.message_handler(func=lambda m: m.text == "ارسال سیگنال دستی")
+def manual_signal(message):
+    bot.send_message(message.chat.id, "نماد را وارد کنید (مثال: ETH):")
+    bot.register_next_step_handler(message, handle_manual_symbol)
+
+def handle_manual_symbol(message):
     symbol = message.text.upper()
-    signal = get_signal(symbol)
-    if signal:
-        msg = f"{symbol} BUY\nENTRY: {signal['entry']}\nSL: {signal['sl']}\nTP1: {signal['tp1']}\nTP2: {signal['tp2']}\nTP3: {signal['tp3']}\nLeverage: {signal['leverage']}"
-        bot.send_message(message.chat.id, msg)
-    else:
-        bot.send_message(message.chat.id, "نماد نامعتبر یا خطا در دریافت سیگنال.")
+    signal = generate_signal(symbol, CMC_API_KEY, manual=True)
+    bot.send_message(message.chat.id, signal)
 
-bot.infinity_polling()
+@app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
+def webhook():
+    update = telebot.types.Update.de_json(request.stream.read().decode("utf-8"))
+    bot.process_new_updates([update])
+    return '', 200
+
+@app.route('/')
+def index():
+    return 'Bot is running.'
+
+if __name__ == '__main__':
+    bot.remove_webhook()
+    bot.set_webhook(url=f"{WEBHOOK_URL}/{TELEGRAM_TOKEN}")
+    app.run(host="0.0.0.0", port=PORT)
