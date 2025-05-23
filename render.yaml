@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: whale-radar-bot
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python whale_bot_ai.py"
+    envVars:
+      - key: TELEGRAM_TOKEN
+        value: توکن_ربات_تلگرام
+      - key: ADMIN_ID
+        value: عدد_آی‌دی_شما
+      - key: COINMARKETCAP_API_KEY
+        value: کلید_API_CMC
